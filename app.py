@@ -1,12 +1,12 @@
 from flask import Flask, jsonify, request
-from nse import NSE
+from bse import BSE
 import os
 
 app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return jsonify({"status": "ok", "message": "NSE relay is running"})
+    return jsonify({"status": "ok", "message": "BSE relay is running"})
 
 @app.route("/actions")
 def actions():
@@ -15,11 +15,17 @@ def actions():
         return jsonify({"error": "symbol parameter required"}), 400
 
     try:
-        # NSE() needs a writable folder for cookie storage.
-        # On Render the /tmp directory is always writable.
-        with NSE(download_folder="/tmp", server=True) as nse:
-            data = nse.actions(segment="equities", symbol=symbol)
+        with BSE(download_folder="/tmp") as bse:
+            # Step 1: resolve NSE symbol → BSE scrip code
+            scrip_code = bse.getScripCode(symbol)
+            if not scrip_code:
+                return jsonify({"error": "Symbol not found: " + symbol}), 404
+
+            # Step 2: fetch full corporate action history
+            data = bse.actions(scripcode=scrip_code)
+
         return jsonify(data)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
